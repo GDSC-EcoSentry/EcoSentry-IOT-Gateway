@@ -8,3 +8,4 @@ NRF24           ESP8266 12E
     MOSI        D7
     MISO        D6
     IRQ         D1
+

@@ -1,24 +1,13 @@
-/*
-   RadioLib nRF24 Transmit Example
-
-   This example transmits packets using nRF24 2.4 GHz radio module.
-   Each packet contains up to 32 bytes of data, in the form of:
-    - Arduino String
-    - null-terminated char array (C-string)
-    - arbitrary binary data (byte array)
-
-   Packet delivery is automatically acknowledged by the receiver.
-
-   For default module settings, see the wiki page
-   https://github.com/jgromes/RadioLib/wiki/Default-configuration#nrf24
-
-   For full API reference, see the GitHub Pages
-   https://jgromes.github.io/RadioLib/
-*/
-
 // include the library
 #include <Arduino.h>
 #include <RadioLib.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecureBearSSL.h>
+
+// Replace with your network credentials
+const char* ssid = "Okaeri";
+const char* password = "cocktail";
 
 // nRF24 has the following connections:
 // CS pin:    D8
@@ -26,11 +15,23 @@
 // CE pin:    D0
 nRF24 radio = new Module(D8, D1, D0);
 
+// URL
+//String URL = "https://us-central1-gdsc-ecosentry.cloudfunctions.net/app/update?stationID=1&nodeID=1&co=100&dust=200&humidity=300&soil_moisture=400&temperature=500&rain=200";
+
+typedef struct sensor_struct {
+  float temp;
+  float humid;
+  int rain;
+  int moisture;
+} sensor_struct;
+
 void setFlag(void);
+int sendRequest(String URL);
+void radioError(int state);
+sensor_struct messageParsing(String input);
+String buildURL(sensor_struct data);
 
-void setup() {
-  Serial.begin(9600);
-
+void initRadio() {
   // initialize nRF24 with default settings
   Serial.print(F("[nRF24] Initializing ... "));
   int state = radio.begin();
@@ -71,15 +72,24 @@ void setup() {
     Serial.println(state);
     while (true);
   }
+}
 
-  // if needed, 'listen' mode can be disabled by calling
-  // any of the following methods:
-  //
-  // radio.standby()
-  // radio.sleep()
-  // radio.transmit();
-  // radio.receive();
-  // radio.readData();
+void initWifi() {
+  //Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi ..");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(1000);
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  initRadio();
+  initWifi();
 }
 
 // flag to indicate that a packet was received
@@ -107,29 +117,111 @@ void loop() {
     String str;
     int state = radio.readData(str);
 
-    // you can also read received data as byte array
-    /*
-      byte byteArr[8];
-      int numBytes = radio.getPacketLength();
-      int state = radio.readData(byteArr, numBytes);
-    */
+    sensor_struct sensor_data = messageParsing(str);
+    
+    String URL = buildURL(sensor_data);
+    Serial.println(URL);
 
-    if (state == RADIOLIB_ERR_NONE) {
-      // packet was successfully received
-      Serial.println(F("[nRF24] Received packet!"));
-
-      // print data of the packet
-      Serial.print(F("[nRF24] Data:\t\t"));
-      Serial.println(str);
-
-    } else {
-      // some other error occurred
-      Serial.print(F("[nRF24] Failed, code "));
-      Serial.println(state);
-
-    }
+    radioError(state);
 
     // put module back to listen mode
     radio.startReceive();
+
+    sendRequest(URL);
+  }
+}
+
+// Parse received messages
+sensor_struct messageParsing(String input) {
+  // Parsing stuff
+  int commaIndex = input.indexOf(',');
+  int secondCommaIndex = input.indexOf(',', commaIndex + 1);
+  int thirdCommaIndex = input.indexOf(',', secondCommaIndex + 1);
+
+  sensor_struct result;
+  result.temp = input.substring(0, commaIndex).toFloat();
+  result.humid = input.substring(commaIndex + 1, secondCommaIndex).toFloat();
+  result.rain = input.substring(secondCommaIndex + 1, thirdCommaIndex).toInt();
+  result.moisture = input.substring(thirdCommaIndex + 1).toInt(); // To the end of the string
+  return result;
+}
+
+String buildURL(sensor_struct data) {
+  String string_test = "https://us-central1-gdsc-ecosentry.cloudfunctions.net/app/update?stationID=1&nodeID=1&humidity=";
+  // * 100 to avoid float in URL
+  string_test += (int) (data.humid * 100);
+  string_test += "&soil_moisture=";
+  string_test += data.moisture;
+  string_test += "&rain=";
+  string_test += data.rain;
+  string_test += "&temp=";
+  string_test += (int) (data.temp * 100);
+  return string_test;
+}
+
+//TODO: Take care of return code
+int sendRequest(String URL) {
+  // wait for WiFi connection
+  if ((WiFi.status() == WL_CONNECTED)) {
+
+    std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
+
+    // Ignore SSL certificate validation
+    client->setInsecure();
+    
+    //create an HTTPClient instance
+    HTTPClient https;
+    
+    //Initializing an HTTPS communication using the secure client
+    Serial.print("[HTTPS] begin...\n");
+    if (https.begin(*client, URL)) {  // HTTPS
+      Serial.print("[HTTPS] GET...\n");
+      // start connection and send HTTP header
+      int httpCode = https.GET();
+      // httpCode will be negative on error
+      if (httpCode > 0) {
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
+        // file found at server
+        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+          String payload = https.getString();
+          Serial.println(payload);
+        }
+      } else {
+        Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+      }
+
+      https.end();
+    } else {
+      Serial.printf("[HTTPS] Unable to connect\n");
+    }
+  }
+
+  return 0;
+}
+
+void radioError(int state) {
+  if (state == RADIOLIB_ERR_NONE) {
+    // the packet was successfully transmitted
+    Serial.println(F("success!"));
+
+  } else if (state == RADIOLIB_ERR_PACKET_TOO_LONG) {
+    // the supplied packet was longer than 32 bytes
+    Serial.println(F("too long!"));
+
+  } else if (state == RADIOLIB_ERR_ACK_NOT_RECEIVED) {
+    // acknowledge from destination module
+    // was not received within 15 retries
+    Serial.println(F("ACK not received!"));
+
+  } else if (state == RADIOLIB_ERR_TX_TIMEOUT) {
+    // timed out while transmitting
+    Serial.println(F("timeout!"));
+
+  } else {
+    // some other error occurred
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+
   }
 }
