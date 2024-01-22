@@ -1,0 +1,10 @@
+pinout:
+NRF24           ESP8266 12E
+    GND         GND
+    VCC         3.3V
+    CE          D0
+    CSN         D8
+    SCK         D5
+    MOSI        D7
+    MISO        D6
+    IRQ         D1

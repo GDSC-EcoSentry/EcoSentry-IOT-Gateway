@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"name": "GDSC-ESP",
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"array": "cpp",
+			"string": "cpp",
+			"string_view": "cpp",
+			"ranges": "cpp"
+		}
+	}
+}
