@@ -154,7 +154,7 @@ String buildURL(sensor_struct data) {
   string_test += data.moisture;
   string_test += "&rain=";
   string_test += data.rain;
-  string_test += "&temp=";
+  string_test += "&temperature=";
   string_test += (int) (data.temp * 100);
   return string_test;
 }
