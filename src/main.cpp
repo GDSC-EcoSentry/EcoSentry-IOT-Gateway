@@ -15,10 +15,11 @@ const char* password = "cocktail";
 // CE pin:    D0
 nRF24 radio = new Module(D8, D1, D0);
 
-// URL
-//String URL = "https://us-central1-gdsc-ecosentry.cloudfunctions.net/app/update?stationID=1&nodeID=1&co=100&dust=200&humidity=300&soil_moisture=400&temperature=500&rain=200";
+// Station ID
+int stationID = 1;
 
 typedef struct sensor_struct {
+  int nodeID;
   float temp;
   float humid;
   int rain;
@@ -137,25 +138,47 @@ sensor_struct messageParsing(String input) {
   int commaIndex = input.indexOf(',');
   int secondCommaIndex = input.indexOf(',', commaIndex + 1);
   int thirdCommaIndex = input.indexOf(',', secondCommaIndex + 1);
+  int fourthCommaIndex = input.indexOf(',', thirdCommaIndex + 1);
 
   sensor_struct result;
-  result.temp = input.substring(0, commaIndex).toFloat();
-  result.humid = input.substring(commaIndex + 1, secondCommaIndex).toFloat();
-  result.rain = input.substring(secondCommaIndex + 1, thirdCommaIndex).toInt();
-  result.moisture = input.substring(thirdCommaIndex + 1).toInt(); // To the end of the string
+  result.nodeID = input.substring(0, commaIndex).toInt();
+  result.temp = input.substring(commaIndex + 1, secondCommaIndex).toFloat();
+  result.humid = input.substring(secondCommaIndex + 1, thirdCommaIndex).toFloat();
+  result.rain = input.substring(thirdCommaIndex + 1, fourthCommaIndex).toInt();
+  result.moisture = input.substring(fourthCommaIndex + 1).toInt(); // To the end of the string
+/*
+  String message = String((int) result.nodeID) + "," + 
+                  String(result.temp, 2) + "," + 
+                  String(result.humid, 2) + "," + 
+                  String(result.rain) + "," +
+                  String(result.moisture);
+
+  Serial.println(message);
+  */
+
   return result;
 }
 
 String buildURL(sensor_struct data) {
-  String string_test = "https://us-central1-gdsc-ecosentry.cloudfunctions.net/app/update?stationID=1&nodeID=1&humidity=";
+  String string_test = "https://us-central1-gdsc-ecosentry.cloudfunctions.net/app/update?stationID=";
+  string_test += stationID;
+
+  string_test += "&nodeID=";
+  string_test += data.nodeID;
+
   // * 100 to avoid float in URL
+  string_test += "&humidity=";
   string_test += (int) (data.humid * 100);
+
   string_test += "&soil_moisture=";
   string_test += data.moisture;
+
   string_test += "&rain=";
   string_test += data.rain;
+
   string_test += "&temperature=";
   string_test += (int) (data.temp * 100);
+
   return string_test;
 }
 
