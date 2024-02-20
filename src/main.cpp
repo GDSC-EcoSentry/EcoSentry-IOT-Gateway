@@ -24,6 +24,8 @@ typedef struct sensor_struct {
   float humid;
   int rain;
   int moisture;
+  int co;
+  int dust;
 } sensor_struct;
 
 void setFlag(void);
@@ -139,13 +141,18 @@ sensor_struct messageParsing(String input) {
   int secondCommaIndex = input.indexOf(',', commaIndex + 1);
   int thirdCommaIndex = input.indexOf(',', secondCommaIndex + 1);
   int fourthCommaIndex = input.indexOf(',', thirdCommaIndex + 1);
+  int fifthCommaIndex = input.indexOf(',', fourthCommaIndex + 1);
+  int sixthCommaIndex = input.indexOf(',', fifthCommaIndex + 1);
 
   sensor_struct result;
   result.nodeID = input.substring(0, commaIndex).toInt();
   result.temp = input.substring(commaIndex + 1, secondCommaIndex).toFloat();
   result.humid = input.substring(secondCommaIndex + 1, thirdCommaIndex).toFloat();
   result.rain = input.substring(thirdCommaIndex + 1, fourthCommaIndex).toInt();
-  result.moisture = input.substring(fourthCommaIndex + 1).toInt(); // To the end of the string
+  result.moisture = input.substring(fourthCommaIndex + 1, fifthCommaIndex).toInt(); 
+  result.co = input.substring(fifthCommaIndex + 1, sixthCommaIndex).toInt(); 
+  result.dust = input.substring(sixthCommaIndex + 1).toInt(); // To the end of the string
+
 /*
   String message = String((int) result.nodeID) + "," + 
                   String(result.temp, 2) + "," + 
@@ -178,6 +185,12 @@ String buildURL(sensor_struct data) {
 
   string_test += "&temperature=";
   string_test += (int) (data.temp * 100);
+
+  string_test += "&co=";
+  string_test += data.co;
+
+  string_test += "&dust=";
+  string_test += data.dust;
 
   return string_test;
 }
