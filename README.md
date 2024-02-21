@@ -1,4 +1,4 @@
-# Forest Monitoring Node with NRF24 and Firebase Integration
+# NRF24 ESP8266 Gateway
 
 ## Overview
 
